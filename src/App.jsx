@@ -48,7 +48,7 @@ function App() {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/transactions/${walletAddress}`
+        `https://solana-production-0549.up.railway.app/api/transactions/${walletAddress}`
       );
       const result = await response.json();
 
@@ -80,7 +80,7 @@ function App() {
     setSelectedPlan(planType);
     try {
       const response = await fetch(
-        "http://localhost:5000/api/wallet/subscribe",
+        "https://solana-production-0549.up.railway.app/api/wallet/subscribe",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
