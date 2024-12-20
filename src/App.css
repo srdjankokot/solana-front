@@ -4,6 +4,25 @@
   padding: 2rem;
   text-align: center;
 }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border-radius: 8px 8px 0 0;
+}
+
+th,
+td {
+  border: 1px solid #9c9c9c;
+  padding: 8px;
+}
+
+th {
+  background-color: #9c9c9c;
+  text-align: left;
+}
 
 .logo {
   height: 6em;

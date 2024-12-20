@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
+import * as XLSX from "xlsx";
 import solanaLogo from "./assets/solana.svg";
 import nswdLogo from "/nswd.svg";
 import "./App.css";
 
 function App() {
   const [walletAddress, setWalletAddress] = useState("");
-  const [selectedPlan, setSelectedPlan] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [planDetails, setPlanDetails] = useState(null);
 
@@ -30,7 +30,6 @@ function App() {
       try {
         await window.solana.disconnect();
         setWalletAddress("");
-        setSelectedPlan(null);
         setTransactions([]);
         setPlanDetails(null);
         console.log("Disconnected from wallet");
@@ -77,7 +76,6 @@ function App() {
       return;
     }
 
-    setSelectedPlan(planType);
     try {
       const response = await fetch(
         "https://solana-production-0549.up.railway.app/api/wallet/subscribe",
@@ -95,51 +93,75 @@ function App() {
       console.error("Error subscribing to plan:", error);
     }
   };
+  const exportToExcel = () => {
+    const data = transactions.map((tx) => ({
+      Date: new Date(tx.block_time).toLocaleString(),
+      "Transaction Hash": tx.transaction_hash,
+    }));
 
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
+
+    XLSX.writeFile(workbook, "transactions.xlsx");
+  };
   const TransactionsList = () => (
     <div>
-      <h2>Plan Details</h2>
-      {planDetails ? (
-        <div>
+      {planDetails && (
+        <div style={{ marginBottom: "20px" }}>
           <p>
             <strong>Plan Type:</strong> {planDetails.plan_type}
           </p>
           <p>
-            <strong>Plan Start:</strong>{" "}
+            <strong>Start Date:</strong>{" "}
             {new Date(planDetails.plan_start).toLocaleString()}
           </p>
           <p>
-            <strong>Plan End:</strong>{" "}
+            <strong>End Date:</strong>{" "}
             {new Date(planDetails.plan_end).toLocaleString()}
           </p>
-          {selectedPlan && (
-            <p>
-              <strong>Selected Plan:</strong> {selectedPlan}
-            </p>
-          )}
         </div>
-      ) : (
-        <p>No active plan found.</p>
       )}
-
-      <h2>Transactions</h2>
-      {transactions.length > 0 ? (
-        <ul>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <h2>Transactions</h2>
+        <button
+          onClick={exportToExcel}
+          style={{ padding: "10px 20px", cursor: "pointer" }}
+        >
+          Export to Excel
+        </button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Transaction Hash</th>
+          </tr>
+        </thead>
+        <tbody>
           {transactions.map((tx, index) => (
-            <li key={index}>
-              <p>
-                <strong>Date:</strong>{" "}
-                {new Date(tx.block_time).toLocaleString()}
-              </p>
-              <p>
-                <strong>Hash:</strong> {tx.transaction_hash}
-              </p>
-            </li>
+            <tr key={index}>
+              <td>{new Date(tx.block_time).toLocaleString()}</td>
+              <td>
+                <a
+                  href={`https://explorer.solana.com/tx/${tx.transaction_hash}?cluster=devnet`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#007bff", textDecoration: "none" }}
+                >
+                  {tx.transaction_hash}
+                </a>
+              </td>
+            </tr>
           ))}
-        </ul>
-      ) : (
-        <p>No transactions found.</p>
-      )}
+        </tbody>
+      </table>
     </div>
   );
 
