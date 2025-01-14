@@ -20,9 +20,11 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
+    "@solflare-wallet/sdk": "^1.4.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "buffer": "^6.0.3",
     "eslint": "^9.15.0",
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-react-hooks": "^5.0.0",

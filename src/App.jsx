@@ -1,44 +1,80 @@
 import { useState, useEffect } from "react";
+import Solflare from "@solflare-wallet/sdk";
 import * as XLSX from "xlsx";
+import {
+  Transaction,
+  SystemProgram,
+  Connection,
+  PublicKey,
+  clusterApiUrl,
+} from "@solana/web3.js";
 import solanaLogo from "./assets/solana.svg";
 import nswdLogo from "/nswd.svg";
 import "./App.css";
+import { Buffer } from "buffer";
 
+window.Buffer = Buffer;
+let solflareWallet = new Solflare({
+  network: "devnet",
+});
 function App() {
   const [walletAddress, setWalletAddress] = useState("");
   const [transactions, setTransactions] = useState([]);
   const [planDetails, setPlanDetails] = useState(null);
 
   const connectWallet = async () => {
-    if (window.solana && window.solana.isPhantom) {
-      try {
-        const response = await window.solana.connect({ onlyIfTrusted: false });
-        setWalletAddress(response.publicKey.toBase58());
-        console.log("Connected to wallet:", response.publicKey.toBase58());
-      } catch (err) {
-        console.error("Wallet connection failed:", err.message);
+    try {
+      await solflareWallet.connect();
+      if (solflareWallet.publicKey) {
+        const address = solflareWallet.publicKey.toString();
+        setWalletAddress(address);
       }
-    } else {
-      alert(
-        "Phantom Wallet nije instaliran. Instalirajte ga sa https://phantom.app"
-      );
+    } catch (err) {
+      console.error("Wallet connection failed:", err.message);
     }
   };
 
   const disconnectWallet = async () => {
-    if (window.solana && window.solana.isPhantom) {
-      try {
-        await window.solana.disconnect();
-        setWalletAddress("");
-        setTransactions([]);
-        setPlanDetails(null);
-        console.log("Disconnected from wallet");
-      } catch (err) {
-        console.error("Failed to disconnect wallet:", err.message);
+    try {
+      solflareWallet.disconnect();
+      setWalletAddress("");
+      setTransactions([]);
+      setPlanDetails(null);
+    } catch (err) {
+      console.error("Failed to disconnect wallet:", err.message);
+    }
+  };
+  const updateTransactions = async () => {
+    if (!walletAddress) {
+      return;
+    }
+    try {
+      const response = await fetch(
+        "https://solana-production-0549.up.railway.app/api/transactions/update",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ walletAddress }),
+        }
+      );
+      const result = await response.json();
+
+      if (response.status === 200) {
+        console.log("Transactions updated successfully!");
+        setTransactions(result.transactions || []);
+      } else {
+        console.warn("Error updating transactions:", result.error);
       }
+    } catch (error) {
+      console.error("Error updating transactions:", error);
     }
   };
 
+  useEffect(() => {
+    if (walletAddress) {
+      updateTransactions();
+    }
+  }, [walletAddress]);
   const fetchTransactions = async () => {
     if (!walletAddress) {
       alert("Please connect your wallet first!");
@@ -76,23 +112,91 @@ function App() {
       return;
     }
 
-    try {
-      const response = await fetch(
-        "https://solana-production-0549.up.railway.app/api/wallet/subscribe",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ walletAddress, planType }),
-        }
-      );
-      const result = await response.json();
-      alert(result.message);
+    let amount; // Iznos u SOL koji treba poslati
+    if (planType === "free_trial") {
+      amount = 0; // Besplatno
+    } else if (planType === "three_months") {
+      amount = 0.01; // 0.01 SOL za tri meseca
+    } else if (planType === "yearly") {
+      amount = 0.05; // 0.05 SOL za godišnji plan
+    } else {
+      alert("Invalid plan type selected!");
+      return;
+    }
 
-      fetchTransactions();
-    } catch (error) {
-      console.error("Error subscribing to plan:", error);
+    if (amount > 0) {
+      try {
+        const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
+
+        const recipientAddress = new PublicKey(
+          "FnfpkZUEGYAVxbWKVx9NUTEiegX7Lvaak9wK7G33NNWV" // OVO JE NKEA MOJA TEST ADRESA GDE SE SALJU SOL TOKENI ZA PRETPLATU
+        );
+
+        const { blockhash } = await connection.getLatestBlockhash("confirmed");
+
+        const transaction = new Transaction({
+          recentBlockhash: blockhash,
+          feePayer: new PublicKey(walletAddress),
+        }).add(
+          SystemProgram.transfer({
+            fromPubkey: new PublicKey(walletAddress),
+            toPubkey: recipientAddress,
+            lamports: amount * 10 ** 9, // Pretvaranje SOL u lamports
+          })
+        );
+
+        const signedTransaction = await solflareWallet.signTransaction(
+          transaction
+        );
+
+        const signature = await connection.sendRawTransaction(
+          signedTransaction.serialize()
+        );
+
+        await connection.confirmTransaction(signature, "confirmed");
+        console.log(`Transaction successful! Signature: ${signature}`);
+
+        // Pozivanje endpoint-a za pretplatu
+        const response = await fetch(
+          "https://solana-production-0549.up.railway.app/api/wallet/subscribe",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ walletAddress, planType }),
+          }
+        );
+
+        const result = await response.json();
+        alert(result.message);
+
+        fetchTransactions();
+      } catch (error) {
+        console.error("Error during transaction:", error);
+        alert("Transaction failed. Please try again.");
+      }
+    } else {
+      // Free trial scenario
+      try {
+        const response = await fetch(
+          "https://solana-production-0549.up.railway.app/api/wallet/subscribe",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ walletAddress, planType }),
+          }
+        );
+
+        const result = await response.json();
+        alert(result.message);
+
+        fetchTransactions();
+      } catch (error) {
+        console.error("Error during subscription:", error);
+        alert("Failed to subscribe to free trial.");
+      }
     }
   };
+
   const exportToExcel = () => {
     const data = transactions.map((tx) => ({
       Date: new Date(tx.block_time).toLocaleString(),
@@ -202,7 +306,7 @@ function App() {
           )}
         </div>
       ) : (
-        <button onClick={connectWallet}>Connect to Phantom Wallet</button>
+        <button onClick={connectWallet}>Connect to Wallet</button>
       )}
     </div>
   );
